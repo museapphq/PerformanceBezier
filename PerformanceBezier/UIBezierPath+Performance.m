@@ -128,6 +128,28 @@ static char BEZIER_PROPERTIES;
     return [self pathProperties].cachedElementCount;
 }
 
+- (CGPoint)startPointForElementAtIndex:(NSInteger)elementIndex
+{
+    if (elementIndex >= [self elementCount] || elementIndex < 0) {
+        @throw [NSException exceptionWithName:@"BezierElementException" reason:@"Element index is out of range" userInfo:nil];
+    }
+    if (elementIndex == 0) {
+        return self.firstPoint;
+    }
+
+    CGPathElement previousElement = [self elementAtIndex:elementIndex - 1];
+    if (previousElement.type == kCGPathElementMoveToPoint ||
+        previousElement.type == kCGPathElementAddLineToPoint) {
+        return previousElement.points[0];
+    } else if (previousElement.type == kCGPathElementAddQuadCurveToPoint) {
+        return previousElement.points[1];
+    } else if (previousElement.type == kCGPathElementAddCurveToPoint) {
+        return previousElement.points[2];
+    }
+
+    return  CGPointNotFound;
+}
+
 
 - (void)fillBezier:(CGPoint[4])bezier forElement:(NSInteger)elementIndex
 {
@@ -144,15 +166,7 @@ static char BEZIER_PROPERTIES;
 
     CGPathElement previousElement = [self elementAtIndex:elementIndex - 1];
     CGPathElement thisElement = [self elementAtIndex:elementIndex];
-
-    if (previousElement.type == kCGPathElementMoveToPoint ||
-        previousElement.type == kCGPathElementAddLineToPoint) {
-        bezier[0] = previousElement.points[0];
-    } else if (previousElement.type == kCGPathElementAddQuadCurveToPoint) {
-        bezier[0] = previousElement.points[1];
-    } else if (previousElement.type == kCGPathElementAddCurveToPoint) {
-        bezier[0] = previousElement.points[2];
-    }
+    bezier[0] = [self startPointForElementAtIndex:elementIndex];
 
     if (thisElement.type == kCGPathElementCloseSubpath) {
         // the distance of a closeSubpath element is from the last point on the subpath
@@ -340,6 +354,56 @@ static char BEZIER_PROPERTIES;
     }
 
     return lengthSoFar;
+}
+
+- (CGRect)boundsOfElementAtIndex:(NSInteger)elementIndex
+{
+    if (elementIndex >= [self elementCount] || elementIndex < 0) {
+        @throw [NSException exceptionWithName:@"BezierElementException" reason:@"Element index is out of range" userInfo:nil];
+    }
+    if (elementIndex == 0) {
+        return CGRectZero;
+    }
+
+    UIBezierPathProperties *props = [self pathProperties];
+
+    CGRect cached = [props cachedBoundsForElementIndex:elementIndex];
+
+    if (!CGRectIsNull(cached)) {
+        return cached;
+    }
+
+    CGPathElement element = [self elementAtIndex:elementIndex];
+    CGPoint startPoint = [self startPointForElementAtIndex:elementIndex];
+    CGPoint pathStartingPoint = self.firstPoint;
+
+    CGRect bounds = boundsForElement(startPoint, element, pathStartingPoint);
+
+    [props cacheBounds:bounds forElementIndex:elementIndex];
+    return bounds;
+}
+
+- (CGRect)boundsOfElement:(CGPathElement)element elementIndex:(NSInteger)elementIndex startPoint:(CGPoint)startPoint pathStartingPoint:(CGPoint)pathStartingPoint
+{
+    if (elementIndex >= [self elementCount] || elementIndex < 0) {
+        @throw [NSException exceptionWithName:@"BezierElementException" reason:@"Element index is out of range" userInfo:nil];
+    }
+    if (elementIndex == 0) {
+        return CGRectZero;
+    }
+
+    UIBezierPathProperties *props = [self pathProperties];
+
+    CGRect cached = [props cachedBoundsForElementIndex:elementIndex];
+
+    if (!CGRectIsNull(cached)) {
+        return cached;
+    }
+
+    CGRect bounds = boundsForElement(startPoint, element, pathStartingPoint);
+
+    [props cacheBounds:bounds forElementIndex:elementIndex];
+    return bounds;
 }
 
 /**
@@ -770,6 +834,34 @@ static char BEZIER_PROPERTIES;
     } else {
         CGPathElement previous = [self elementAtIndex:elementIndex - 1];
         return !movesSincePrev(previous, ele);
+    }
+}
+
+CGRect boundsForElement(CGPoint startPoint, CGPathElement element, CGPoint pathStartingPoint)
+{
+    // this method will return the bounds for the input element
+    // it'd really need the start point of the element too, but
+    // it's pseudo code...
+    if (element.type == kCGPathElementAddCurveToPoint) {
+        CGFloat minX = MIN(MIN(MIN(startPoint.x, element.points[0].x), element.points[1].x), element.points[2].x);
+        CGFloat minY = MIN(MIN(MIN(startPoint.y, element.points[0].y), element.points[1].y), element.points[2].y);
+        CGFloat maxX = MAX(MAX(MAX(startPoint.x, element.points[0].x), element.points[1].x), element.points[2].x);
+        CGFloat maxY = MAX(MAX(MAX(startPoint.y, element.points[0].y), element.points[1].y), element.points[2].y);
+        return CGRectMake(minX, minY, maxX - minX, maxY - minY);
+    } else if (element.type == kCGPathElementMoveToPoint) {
+        return CGRectMake(element.points[0].x, element.points[0].y, 0, 0);
+    } else if (element.type == kCGPathElementCloseSubpath) {
+        CGFloat minX = MIN(startPoint.x, pathStartingPoint.x);
+        CGFloat minY = MIN(startPoint.y, pathStartingPoint.y);
+        CGFloat maxX = MAX(startPoint.x, pathStartingPoint.x);
+        CGFloat maxY = MAX(startPoint.y, pathStartingPoint.y);
+        return CGRectMake(minX, minY, maxX - minX, maxY - minY);
+    } else {
+        CGFloat minX = MIN(startPoint.x, element.points[0].x);
+        CGFloat minY = MIN(startPoint.y, element.points[0].y);
+        CGFloat maxX = MAX(startPoint.x, element.points[0].x);
+        CGFloat maxY = MAX(startPoint.y, element.points[0].y);
+        return CGRectMake(minX, minY, maxX - minX, maxY - minY);
     }
 }
 

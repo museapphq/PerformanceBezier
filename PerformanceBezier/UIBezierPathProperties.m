@@ -26,8 +26,10 @@ typedef struct LengthCacheItem {
     UIBezierPath *bezierPathByFlatteningPath;
     LengthCacheItem* elementLengthCache;
     LengthCacheItem* totalLengthCache;
+    CGRect* elementBoundsCache;
     NSInteger lengthCacheCount;
     NSInteger totalLengthCacheCount;
+    NSInteger boundsCacheCount;
     NSObject *lock;
 }
 
@@ -51,8 +53,10 @@ typedef struct LengthCacheItem {
     if(self = [super init]){
         elementLengthCache = nil;
         totalLengthCache = nil;
+        elementBoundsCache = nil;
         lengthCacheCount = 0;
         totalLengthCacheCount = 0;
+        boundsCacheCount = 0;
         lock = [[NSObject alloc] init];
     }
     
@@ -75,6 +79,8 @@ typedef struct LengthCacheItem {
     tangentAtEnd = [decoder decodeFloatForKey:@"pathProperties_tangentAtEnd"];
     cachedElementCount = [decoder decodeIntegerForKey:@"pathProperties_cachedElementCount"];
     lengthCacheCount = 0;
+    totalLengthCacheCount = 0;
+    boundsCacheCount = 0;
     lock = [[NSObject alloc] init];
     return self;
 }
@@ -118,6 +124,12 @@ typedef struct LengthCacheItem {
             free(totalLengthCache);
             totalLengthCache = nil;
             totalLengthCacheCount = 0;
+        }
+
+        if (boundsCacheCount > 0 && elementBoundsCache){
+            free(elementBoundsCache);
+            elementBoundsCache = nil;
+            boundsCacheCount = 0;
         }
     }
 
@@ -198,5 +210,43 @@ typedef struct LengthCacheItem {
         totalLengthCache[index].acceptableError = error;
     }
 }
+
+-(CGRect)cachedBoundsForElementIndex:(NSInteger)index {
+    @synchronized (lock) {
+        if (index < 0 || index >= boundsCacheCount) {
+            return CGRectNull;
+        }
+
+        CGRect rect = elementBoundsCache[index];
+        if (CGRectEqualToRect(rect, CGRectZero)) {
+            return CGRectNull;
+        } else {
+            return rect;
+        }
+    }
+
+    return CGRectNull;
+}
+
+-(void)cacheBounds:(CGRect)bounds forElementIndex:(NSInteger)index {
+    @synchronized (lock) {
+        if (boundsCacheCount == 0){
+            const NSInteger DefaultCount = 256;
+            elementBoundsCache = calloc(DefaultCount, sizeof(CGRect));
+            boundsCacheCount = DefaultCount;
+        } else if (index >= boundsCacheCount) {
+            // increase our cache size
+            CGRect* oldCache = elementBoundsCache;
+            NSInteger oldLength = boundsCacheCount;
+            boundsCacheCount *= 2;
+            elementBoundsCache = calloc(boundsCacheCount, sizeof(CGRect));
+            memcpy(elementBoundsCache, oldCache, oldLength * sizeof(CGRect));
+            free(oldCache);
+        }
+
+        elementBoundsCache[index] = bounds;
+    }
+}
+
 
 @end

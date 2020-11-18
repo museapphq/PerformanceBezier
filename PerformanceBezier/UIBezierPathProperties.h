@@ -28,4 +28,7 @@
 -(CGFloat)cachedLengthOfPathThroughElementIndex:(NSInteger)index acceptableError:(CGFloat)error;
 -(void)cacheLengthOfPath:(CGFloat)length throughElementIndex:(NSInteger)index acceptableError:(CGFloat)error;
 
+-(CGRect)cachedBoundsForElementIndex:(NSInteger)index;
+-(void)cacheBounds:(CGRect)bounds forElementIndex:(NSInteger)index;
+
 @end
