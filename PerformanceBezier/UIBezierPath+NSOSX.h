@@ -15,6 +15,12 @@
 // YES if the path is made without curves, NO otherwise
 @property(nonatomic, assign) BOOL isFlat;
 
+- (UIBezierPath *)bezierPathByFlatteningPathAndImmutable:(BOOL)returnCopy;
+
+- (UIBezierPath *)bezierPathByFlatteningPathWithFlatnessThreshold:(CGFloat)flatnessThreshold;
+
+- (UIBezierPath *)bezierPathByFlatteningPathWithFlatnessThreshold:(CGFloat)flatnessThreshold immutable:(BOOL)returnCopy;
+
 // returns the element at the given index, and also
 // fills the points[] array with the element's points.
 // the points property of the CGPathElement is owned by
